@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 
 DATABASE_URL = "sqlite:///ecommerce.db"
@@ -9,9 +8,9 @@ SessionLocal = sessionmaker(bind=engine)
 
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import DeclarativeBase
 
-
-DATABASE_URL = "postgresql+asyncpg://ecommerce_user:xxxxxxxx@localhost:5432/ecommerce_db"
+DATABASE_URL = "postgresql+asyncpg://ecommerce_user:ecommerce_user@0.0.0.0:5432/ecommerce_db"
 async_engine = create_async_engine(DATABASE_URL, echo=True)
 async_session_maker = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
 
