@@ -68,7 +68,7 @@ async def get_products_by_category(category_id: int, db: AsyncSession = Depends(
     return products_by_category
 
 
-@router.get("/products/{product_id}", response_model=ProductSchema)
+@router.get("/{product_id}", response_model=ProductSchema)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db)):
     """
     Возвращает детальную информацию о товаре по его ID.
@@ -82,7 +82,7 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db))
     return product
 
 
-@router.put("/products/{product_id}")
+@router.put("/{product_id}")
 async def update_product(
     product_id: int,
     product: ProductCreate,
