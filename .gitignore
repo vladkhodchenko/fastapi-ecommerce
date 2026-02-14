@@ -1,6 +1,6 @@
 
 # python cache
-__pycache__
+__pycache__/
 
 # env file
 .env
