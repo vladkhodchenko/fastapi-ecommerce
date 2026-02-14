@@ -13,7 +13,7 @@ async def update_product_rating(db: AsyncSession, product_id: int):
         )
     )
     avg_rating = result.scalar() or 0.0
-    print(avg_rating)
+    print("AVG RATING", avg_rating)
     product = await db.get(ProductModel, product_id)
     product.rating = avg_rating
 
