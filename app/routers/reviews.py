@@ -78,13 +78,16 @@ async def delete_review(
         review_id: int, db: AsyncSession = Depends(get_async_db), current_user: UserModel = Depends(get_current_user)
 ):
     if current_user.role != "buyer" and current_user.role != "admin":
-        raise HTTPException(status_code=400, detail="Only the review creator can delete it")
+        raise HTTPException(status_code=403, detail="Only the buyer can delete it")
 
     stmt = select(ReviewModel).where(ReviewModel.id == review_id, ReviewModel.is_active == True)
     review = (await db.scalars(stmt)).first()
 
     if review is None:
         raise HTTPException(status_code=404, detail="Review not found or inactive")
+
+    if current_user.id != review.user_id:
+        raise HTTPException(status_code=403, detail="Only the review creator can delete it")
 
     await db.execute(update(ReviewModel).where(ReviewModel.id == review_id).values(is_active=False))
     await update_product_rating(db, review.product_id)
