@@ -1,6 +1,5 @@
 from decimal import Decimal
-
-from sqlalchemy import String, Boolean, Integer, Numeric, ForeignKey, Float, text
+from sqlalchemy import String, Boolean, Integer, Numeric, ForeignKey, Float, text, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,7 +15,8 @@ class Product(Base):
     image_url: Mapped[str | None] = mapped_column(String(200), nullable=True)
     stock: Mapped[int] = mapped_column(Integer, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    rating: Mapped[float] = mapped_column(Float, default=0.0, server_default=text('0'))  # Средний рейтинг
+    # rating: Mapped[float] = mapped_column(Float, default=0.0, server_default=text('0'))  # Средний рейтинг
+    rating: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=0, server_default=text('0'))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
