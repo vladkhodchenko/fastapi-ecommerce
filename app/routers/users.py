@@ -11,15 +11,18 @@ from app.auth import hash_password, verify_password, create_access_token, create
 import jwt
 from app.config import SECRET_KEY, ALGORITHM
 from app.schemas import UserCreate, User as UserSchema, RefreshTokenRequest
+from app.auth import get_current_admin
+
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/", response_model=list[UserSchema], status_code=status.HTTP_200_OK)
-async def get_users(db: AsyncSession = Depends(get_async_db)):
+async def get_users(db: AsyncSession = Depends(get_async_db), current_user: UserModel = Depends(get_current_admin)):
     result = await db.scalars(select(UserModel).where(UserModel.is_active == True))
 
     return result.all()
+
 
 @router.post("/", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
 async def create_user(user: UserCreate, db: AsyncSession = Depends(get_async_db)):

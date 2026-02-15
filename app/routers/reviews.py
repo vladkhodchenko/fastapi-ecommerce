@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_buyer, get_current_user
 from app.models.reviews import Review as ReviewModel
 from app.models.users import User as UserModel
 from app.models.products import Product as ProductModel
@@ -9,6 +10,8 @@ from app.models.products import Product as ProductModel
 from app.schemas import Review as ReviewSchema, ReviewCreate
 from app.db_depends import get_async_db
 from app.tools.reviews import update_product_rating
+from sqlalchemy.sql import func
+
 
 router = APIRouter(
     prefix="/reviews",
@@ -18,13 +21,21 @@ router = APIRouter(
 
 @router.get("/", response_model=list[ReviewSchema])
 async def get_reviews(db: AsyncSession = Depends(get_async_db)):
+    result = await db.execute(
+        select(func.avg(ReviewModel.grade)).where(
+            ReviewModel.product_id == 1,
+            ReviewModel.is_active == True
+        )
+    )
+    print(result.scalar())
+
     result = await db.scalars(select(ReviewModel).where(ReviewModel.is_active == True))
 
     return result.all()
 
 
 @router.post("/", response_model=ReviewSchema)
-async def create_review(review: ReviewCreate, db: AsyncSession = Depends(get_async_db)):
+async def create_review(review: ReviewCreate, db: AsyncSession = Depends(get_async_db), current_user: UserModel = Depends(get_current_buyer)):
     stmt_user = select(UserModel).where(UserModel.id == review.user_id, UserModel.is_active == True)
     stmt_product = select(ProductModel).where(ProductModel.id == review.product_id, ProductModel.is_active == True)
     stmt_review = select(ReviewModel).where(
@@ -63,16 +74,21 @@ async def get_reviews_product(product_id: int, db: AsyncSession = Depends(get_as
 
 
 @router.delete("/{review_id}", status_code=status.HTTP_200_OK)
-async def delete_review(review_id: int, db: AsyncSession = Depends(get_async_db)):
+async def delete_review(
+        review_id: int, db: AsyncSession = Depends(get_async_db), current_user: UserModel = Depends(get_current_user)
+):
+    if current_user.role != "buyer" and current_user.role != "admin":
+        raise HTTPException(status_code=400, detail="Only the review creator can delete it")
+
     stmt = select(ReviewModel).where(ReviewModel.id == review_id, ReviewModel.is_active == True)
     review = (await db.scalars(stmt)).first()
-
-    #TODO: Add validation user
 
     if review is None:
         raise HTTPException(status_code=404, detail="Review not found or inactive")
 
     await db.execute(update(ReviewModel).where(ReviewModel.id == review_id).values(is_active=False))
+    await update_product_rating(db, review.product_id)
+
     await db.commit()
 
     return {"status": "success", "message": "Review marked as inactive"}
