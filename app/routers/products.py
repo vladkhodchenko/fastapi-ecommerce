@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 
-from app.schemas import ProductCreate, Product as ProductSchema
+from app.schemas import ProductCreate, Product as ProductSchema, Review as ReviewSchema
 from app.db_depends import get_async_db
 from app.auth import get_current_seller
 
 from app.models.products import Product as ProductModel
 from app.models.categories import Category as CategoryModel
+from app.models.reviews import Review as ReviewModel
 from app.models.users import User as UserModel
 
 from sqlalchemy import select, update
@@ -52,7 +53,7 @@ async def get_all_products(db: AsyncSession = Depends(get_async_db)):
     return products
 
 
-@router.get("/products/category/{category_id}", response_model=ProductSchema)
+@router.get("/category/{category_id}", response_model=ProductSchema)
 async def get_products_by_category(category_id: int, db: AsyncSession = Depends(get_async_db)):
     stmt_category = select(CategoryModel).where(CategoryModel.id == category_id)
     stmt_product = select(ProductModel).where(ProductModel.category_id == category_id, ProductModel.is_active == True)
@@ -124,7 +125,7 @@ async def delete_product(
     product = (await db.scalars(stmt)).first()
 
     if product is None:
-        raise HTTPException(status_code=404, details="Product not found")
+        raise HTTPException(status_code=404, detail="Product not found")
     if product.seller_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own products")
 
@@ -132,3 +133,17 @@ async def delete_product(
     await db.commit()
 
     return {"status": "success", "message": "Product marked as inactive"}
+
+
+@router.get("/{product_id}/reviews/", response_model=list[ReviewSchema])
+async def get_reviews_product(product_id: int, db: AsyncSession = Depends(get_async_db)):
+    stmt = select(ProductModel).where(ProductModel.id == product_id, ProductModel.is_active == True)
+    product = (await db.scalars(stmt)).first()
+
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    stmt = select(ReviewModel).where(ReviewModel.product_id == product_id, ReviewModel.is_active == True)
+    reviews = (await db.scalars(stmt)).all()
+
+    return reviews
