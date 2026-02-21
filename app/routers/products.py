@@ -50,6 +50,7 @@ async def get_all_products_2(
         page_size: int = Query(20, ge=1, le=100),
         category_id: int | None = Query(
             None, description="ID категории для фильтрации"),
+        search: str | None = Query(None, min_length=1, description="Поиск по названию товара"),
         min_price: float | None = Query(
             None, ge=0, description="Минимальная цена товара"),
         max_price: float | None = Query(
@@ -77,6 +78,10 @@ async def get_all_products_2(
 
     if category_id is not None:
         filters.append(ProductModel.category_id == category_id)
+    if search is not None:
+        search_value = search.strip()
+        if search_value:
+            filters.append(func.lower(ProductModel.name).like(f"%{search_value.lower()}%"))
     if min_price is not None:
         filters.append(ProductModel.price >= min_price)
     if max_price is not None:
@@ -93,7 +98,7 @@ async def get_all_products_2(
 
     products_stmt = (
         select(ProductModel)
-        .where(ProductModel.is_active == True)
+        .where(*filters)
         .order_by(ProductModel.id)
         .offset((page - 1) * page_size)
         .limit(page_size)
