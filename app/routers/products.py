@@ -12,6 +12,16 @@ from app.models.users import User as UserModel
 
 from sqlalchemy import select, func, desc, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
+import uuid
+from fastapi import UploadFile, File, Form, HTTPException, status
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+MEDIA_ROOT = BASE_DIR / "media" / "products"
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_IMAGE_SIZE = 2 * 1024 * 1024  # 2 097 152 байт
 
 
 # Создаём маршрутизатор для товаров
@@ -24,6 +34,7 @@ router = APIRouter(
 @router.post("/", response_model=ProductSchema, status_code=status.HTTP_201_CREATED)
 async def create_product(
     product: ProductCreate,
+    image: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller)
 ):
@@ -36,7 +47,14 @@ async def create_product(
     if category_id is None:
         raise HTTPException(status_code=400, detail="Category not found or inactive")
 
-    db_product = ProductModel(**product.model_dump(), seller_id=current_user.id)
+    image_url = await save_product_image(image) if image else None
+
+    db_product = ProductModel(
+        **product.model_dump(),
+        seller_id=current_user.id,
+        image_url=image_url,
+    )
+
     db.add(db_product)
     await db.commit()
     await db.refresh(db_product)
@@ -178,6 +196,7 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db))
 async def update_product(
     product_id: int,
     product: ProductCreate,
+    image: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller)
 ):
@@ -200,6 +219,11 @@ async def update_product(
         .where(ProductModel.id == product_id)
         .values(**product.model_dump())
     )
+
+    if image:
+        remove_product_image(result_product.image_url)
+        result_product.image_url = await save_product_image(image)
+
     await db.commit()
     await db.refresh(result_product)
 
@@ -238,3 +262,34 @@ async def get_reviews_product(product_id: int, db: AsyncSession = Depends(get_as
     reviews = (await db.scalars(stmt)).all()
 
     return reviews
+
+
+async def save_product_image(file: UploadFile) -> str:
+    """
+    Сохраняет изображение товара и возвращает относительный URL.
+    """
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only JPG, PNG or WebP images are allowed")
+
+    content = await file.read()
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Image is too large")
+
+    extension = Path(file.filename or "").suffix.lower() or ".jpg"
+    file_name = f"{uuid.uuid4()}{extension}"
+    file_path = MEDIA_ROOT / file_name
+    file_path.write_bytes(content)
+
+    return f"/media/products/{file_name}"
+
+
+def remove_product_image(url: str | None) -> None:
+    """
+    Удаляет файл изображения, если он существует.
+    """
+    if not url:
+        return
+    relative_path = url.lstrip("/")
+    file_path = BASE_DIR / relative_path
+    if file_path.exists():
+        file_path.unlink()
