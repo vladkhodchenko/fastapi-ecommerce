@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException, Query
+from fastapi import APIRouter, Depends, status, HTTPExcep4tion, Query
 from datetime import datetime
 
 from app.schemas import ProductCreate, Product as ProductSchema, Review as ReviewSchema, ProductList
@@ -33,7 +33,7 @@ router = APIRouter(
 
 @router.post("/", response_model=ProductSchema, status_code=status.HTTP_201_CREATED)
 async def create_product(
-    product: ProductCreate,
+    product: ProductCreate = Depends(ProductCreate.as_form),
     image: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller)
@@ -244,6 +244,8 @@ async def delete_product(
     if product.seller_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own products")
 
+    remove_product_image(product.image_url)
+
     await db.execute(update(ProductModel).where(ProductModel.id == product_id).values(is_active=False))
     await db.commit()
 
@@ -289,7 +291,9 @@ def remove_product_image(url: str | None) -> None:
     """
     if not url:
         return
+    
     relative_path = url.lstrip("/")
     file_path = BASE_DIR / relative_path
+    
     if file_path.exists():
         file_path.unlink()
